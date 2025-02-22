@@ -18,20 +18,15 @@ Prerequisites
 Python 3.x installed
 
 Tkinter (comes pre-installed with Python)
+## Getting Started  
 
-**Steps**
+Follow the steps below to set up and run the Password Strength Indicator:  
 
-Clone this repository:
+### **1. Clone the Repository**  
+Open your terminal and run:  
 
 git clone https://github.com/yourusername/password-strength-indicator.git
 
-Navigate to the project directory:
-
-cd password-strength-indicator
-
-Run the script:
-
-python password_strength.py
 
 **Usage**
 
