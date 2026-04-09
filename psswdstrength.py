@@ -1,145 +1,168 @@
-<<<<<<< HEAD
-import tkinter as tk
-from tkinter import ttk
-from tkinter import messagebox  # 1. Imported the messagebox module
+import customtkinter as ctk
+from tkinter import messagebox
+import pyperclip  # New import for clipboard management
 import re
 import string
 import secrets
 
+ctk.set_appearance_mode("System")  
+ctk.set_default_color_theme("blue")  
+
 class PasswordStrengthApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Password Strength Indicator & Generator")
-        self.root.geometry("450x550")
-        self.root.configure(bg="#f5f5f5")
+        self.root.title("Modern Password Tool")
+        self.root.geometry("450x650") # Slightly taller to fit new buttons
 
-        self.style = ttk.Style()
-        self.style.theme_use('clam') 
-        self.setup_styles()
+        # A small dictionary of common, easy-to-type words for our Passphrase Generator
+        # In a massive production app, you'd load this from a text file of 10,000+ words
+        self.word_list = [
+            "apple", "river", "cloud", "stone", "train", "light", "mouse", "chair",
+            "brain", "glass", "water", "plant", "music", "table", "paper", "heart",
+            "ocean", "bread", "watch", "house", "night", "smile", "dream", "space",
+            "block", "flame", "grape", "honey", "juice", "lemon", "mango", "peach"
+        ]
 
         self.create_widgets()
 
-    def setup_styles(self):
-        self.style.configure("Weak.Horizontal.TProgressbar", background="#ff4d4d")
-        self.style.configure("Fair.Horizontal.TProgressbar", background="#ffcc00")
-        self.style.configure("Good.Horizontal.TProgressbar", background="#ffa500")
-        self.style.configure("Strong.Horizontal.TProgressbar", background="#33cc33")
-
     def create_widgets(self):
-        # --- CHECKER SECTION ---
-        title_label = tk.Label(self.root, text="Password Strength Checker", 
-                               font=("Arial", 14, "bold"), bg="#f5f5f5")
-        title_label.pack(pady=(15, 5))
+        self.main_frame = ctk.CTkFrame(self.root, corner_radius=15)
+        self.main_frame.pack(pady=20, padx=20, fill="both", expand=True)
 
-        self.password_entry = tk.Entry(self.root, show="*", width=30, font=("Arial", 12))
-        self.password_entry.pack(pady=5)
+        # --- CHECKER SECTION ---
+        title_label = ctk.CTkLabel(self.main_frame, text="Password Strength Checker", 
+                                   font=ctk.CTkFont(size=20, weight="bold"))
+        title_label.pack(pady=(20, 10))
+
+        # Created a frame to hold the Entry and the Copy button side-by-side
+        entry_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+        entry_frame.pack(pady=10)
+
+        self.password_entry = ctk.CTkEntry(entry_frame, show="*", width=240, 
+                                           font=ctk.CTkFont(size=14), placeholder_text="Type password here...")
+        self.password_entry.grid(row=0, column=0, padx=(0, 5))
         self.password_entry.bind("<KeyRelease>", self.update_strength_indicator)
 
-        self.show_password_var = tk.BooleanVar()
-        show_cb = tk.Checkbutton(self.root, text="Show Password", 
-                                 variable=self.show_password_var, 
-                                 command=self.toggle_password_visibility, 
-                                 bg="#f5f5f5", font=("Arial", 9))
-        show_cb.pack()
+        # The new Copy Button
+        self.copy_btn = ctk.CTkButton(entry_frame, text="📋 Copy", width=50, 
+                                      command=self.copy_to_clipboard, fg_color="#4b5563", hover_color="#374151")
+        self.copy_btn.grid(row=0, column=1)
 
-        self.strength_label = tk.Label(self.root, text="Strength: None", 
-                                       font=("Arial", 12, "bold"), bg="#f5f5f5")
-        self.strength_label.pack(pady=5)
+        self.show_cb = ctk.CTkCheckBox(self.main_frame, text="Show Password", 
+                                       command=self.toggle_password_visibility)
+        self.show_cb.pack(pady=5)
 
-        self.strength_bar = ttk.Progressbar(self.root, length=300, mode='determinate')
+        self.strength_label = ctk.CTkLabel(self.main_frame, text="Strength: None", 
+                                           font=ctk.CTkFont(size=16, weight="bold"))
+        self.strength_label.pack(pady=(15, 5))
+
+        self.strength_bar = ctk.CTkProgressBar(self.main_frame, width=300, height=12)
+        self.strength_bar.set(0) 
         self.strength_bar.pack(pady=5)
 
         # --- GENERATOR SECTION ---
-        gen_frame = tk.LabelFrame(self.root, text="Password Suggestions", bg="#f5f5f5", font=("Arial", 10, "bold"), padx=10, pady=10)
+        gen_frame = ctk.CTkFrame(self.main_frame, corner_radius=10)
         gen_frame.pack(pady=20, fill="x", padx=20)
 
+        ctk.CTkLabel(gen_frame, text="Need a secure password?", 
+                     font=ctk.CTkFont(size=14, weight="bold")).pack(pady=(10, 5))
+
         # 1. Random Generator
-        random_btn = tk.Button(gen_frame, text="🎲 Generate Random Strong Password", 
-                               command=self.generate_random_password, bg="#e0e0e0")
-        random_btn.pack(fill="x", pady=(0, 15))
+        random_btn = ctk.CTkButton(gen_frame, text="🎲 Generate Random Password", 
+                                   command=self.generate_random_password, 
+                                   fg_color="#4b5563", hover_color="#374151")
+        random_btn.pack(fill="x", padx=20, pady=5)
 
-        # 2. Custom Detail Generator
-        tk.Label(gen_frame, text="Or create a memorable one based on:", bg="#f5f5f5").pack(anchor="w")
-        
-        input_frame = tk.Frame(gen_frame, bg="#f5f5f5")
-        input_frame.pack(fill="x", pady=5)
+        # 2. NEW: Passphrase Generator
+        passphrase_btn = ctk.CTkButton(gen_frame, text="📚 Generate Memorable Passphrase", 
+                                   command=self.generate_passphrase, 
+                                   fg_color="#059669", hover_color="#047857") # Green to show it's recommended
+        passphrase_btn.pack(fill="x", padx=20, pady=5)
 
-        tk.Label(input_frame, text="Memorable Word:", bg="#f5f5f5").grid(row=0, column=0, sticky="w", pady=2)
-        self.base_word_entry = tk.Entry(input_frame, width=15)
-        self.base_word_entry.grid(row=0, column=1, padx=5, pady=2)
+        ctk.CTkLabel(gen_frame, text="-- OR --", text_color="gray").pack()
 
-        tk.Label(input_frame, text="Favorite Number:", bg="#f5f5f5").grid(row=1, column=0, sticky="w", pady=2)
-        self.number_entry = tk.Entry(input_frame, width=15)
-        self.number_entry.grid(row=1, column=1, padx=5, pady=2)
+        # 3. Custom Info Generator
+        input_frame = ctk.CTkFrame(gen_frame, fg_color="transparent")
+        input_frame.pack(fill="x", padx=20, pady=5)
 
-        custom_btn = tk.Button(gen_frame, text="✨ Generate Custom Strong Password", 
-                               command=self.generate_custom_password, bg="#e0e0e0")
-        custom_btn.pack(fill="x", pady=(5, 0))
+        self.base_word_entry = ctk.CTkEntry(input_frame, placeholder_text="Memorable Word", width=130)
+        self.base_word_entry.grid(row=0, column=0, padx=5, pady=5)
+
+        self.number_entry = ctk.CTkEntry(input_frame, placeholder_text="Fav Number", width=130)
+        self.number_entry.grid(row=0, column=1, padx=5, pady=5)
+
+        custom_btn = ctk.CTkButton(gen_frame, text="✨ Generate Custom Password", 
+                                   command=self.generate_custom_password)
+        custom_btn.pack(fill="x", padx=20, pady=(10, 20))
 
     # --- LOGIC METHODS ---
 
-    def toggle_password_visibility(self):
-        if self.show_password_var.get():
-            self.password_entry.config(show="")
+    def copy_to_clipboard(self):
+        """Copies the current password to the OS clipboard."""
+        password = self.password_entry.get()
+        if password:
+            pyperclip.copy(password)
+            # Temporarily change button text to give user feedback
+            self.copy_btn.configure(text="✅ Copied!")
+            self.root.after(2000, lambda: self.copy_btn.configure(text="📋 Copy"))
         else:
-            self.password_entry.config(show="*")
+            messagebox.showwarning("Empty", "There is no password to copy!")
+
+    def toggle_password_visibility(self):
+        if self.show_cb.get() == 1:
+            self.password_entry.configure(show="")
+        else:
+            self.password_entry.configure(show="*")
 
     def apply_generated_password(self, new_password):
-        """Helper to insert the new password and trigger the strength check."""
-        self.password_entry.delete(0, tk.END)
+        self.password_entry.delete(0, ctk.END)
         self.password_entry.insert(0, new_password)
-        self.show_password_var.set(True)
+        self.show_cb.select() 
         self.toggle_password_visibility()
         self.update_strength_indicator()
 
     def generate_random_password(self, length=14):
-        """Generates a highly secure random string."""
         alphabet = string.ascii_letters + string.digits + "!@#$%^&*()_+"
-        
         required_chars = [
             secrets.choice(string.ascii_lowercase),
             secrets.choice(string.ascii_uppercase),
             secrets.choice(string.digits),
             secrets.choice("!@#$%^&*()_+")
         ]
-        
         rest_of_password = [secrets.choice(alphabet) for _ in range(length - 4)]
-        
         password_list = required_chars + rest_of_password
         secrets.SystemRandom().shuffle(password_list) 
-        
         self.apply_generated_password("".join(password_list))
 
+    def generate_passphrase(self):
+        """Generates a secure 4-word passphrase separated by hyphens."""
+        words = [secrets.choice(self.word_list) for _ in range(4)]
+        passphrase = "-".join(words)
+        
+        # Add a random number to the end to satisfy typical website requirements
+        passphrase += str(secrets.randbelow(100))
+        
+        self.apply_generated_password(passphrase)
+
     def generate_custom_password(self):
-        """Generates a secure password mangled from user inputs."""
         base = self.base_word_entry.get().strip()
         num = self.number_entry.get().strip()
         
-        # 2. Check for empty fields and show a warning popup
         if not base or not num:
-            messagebox.showwarning(
-                title="Missing Input", 
-                message="Please enter both a 'Memorable Word' and a 'Favorite Number' to generate a custom password."
-            )
-            return  # This stops the function here, preventing the password from generating
+            messagebox.showwarning("Missing Input", "Please enter both a 'Memorable Word' and a 'Favorite Number'.")
+            return 
             
-        # Common Leetspeak substitutions
         subs = {'a': '@', 'e': '3', 'i': '1', 'o': '0', 's': '$', 'l': '!'}
-        transformed_base = ""
-        for char in base.lower():
-            transformed_base += subs.get(char, char)
+        transformed_base = "".join([subs.get(char, char) for char in base.lower()])
             
-        # Ensure there is an uppercase letter
         if transformed_base and transformed_base[0].isalpha():
             transformed_base = transformed_base[0].upper() + transformed_base[1:]
         elif transformed_base:
             transformed_base = "A" + transformed_base 
             
-        # Combine base, number, and guarantee a special character
         special_char = secrets.choice("!@#$%^&*")
         password = f"{transformed_base}{num}{special_char}"
         
-        # Ensure length is at least 12 for max strength score
         while len(password) < 12:
             password += secrets.choice(string.ascii_letters)
             
@@ -147,35 +170,38 @@ class PasswordStrengthApp:
 
     def check_password_strength(self, password):
         if not password:
-            return "None", 0, "black"
+            return "None", 0, "gray"
 
         score = 0
         if len(password) >= 8: score += 1
         if len(password) >= 12: score += 1
+        if len(password) >= 16: score += 1 # Extra point for passphrase length
         if re.search(r"[a-z]", password): score += 1 
         if re.search(r"[A-Z]", password): score += 1 
         if re.search(r"\d", password): score += 1    
-        if re.search(r"[!@#$%^&*(),.?\":{}|<>]", password): score += 1 
+        if re.search(r"[!@#$%^&*(),.?\":{}|<>\-]", password): score += 1 # Added hyphen support
 
-        if score <= 2: return "Weak", 25, "#ff4d4d"
-        elif score <= 4: return "Fair", 50, "#ffcc00"
-        elif score == 5: return "Good", 75, "#ffa500"
-        else: return "Strong", 100, "#33cc33"
+        # Adjusted scoring out of 7 possible points
+        if score <= 3: return "Weak", 0.25, "#ff4d4d"
+        elif score <= 5: return "Fair", 0.50, "#ffcc00"
+        elif score == 6: return "Good", 0.75, "#ffa500"
+        else: return "Strong", 1.0, "#33cc33"
 
     def update_strength_indicator(self, event=None):
         password = self.password_entry.get()
         strength, value, color = self.check_password_strength(password)
         
         if strength == "None":
-            self.strength_label.config(text="Strength: None", foreground="black")
-            self.strength_bar['value'] = 0
+            self.strength_label.configure(text="Strength: None", text_color="gray")
+            self.strength_bar.set(0)
+            self.strength_bar.configure(progress_color="gray")
         else:
-            self.strength_label.config(text=f"Strength: {strength}", foreground=color)
-            self.strength_bar['value'] = value
-            self.strength_bar['style'] = f"{strength}.Horizontal.TProgressbar"
+            self.strength_label.configure(text=f"Strength: {strength}", text_color=color)
+            self.strength_bar.set(value)
+            self.strength_bar.configure(progress_color=color)
 
 
 if __name__ == "__main__":
-    root = tk.Tk()
+    root = ctk.CTk()
     app = PasswordStrengthApp(root)
     root.mainloop()
