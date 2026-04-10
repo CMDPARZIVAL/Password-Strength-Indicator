@@ -1,9 +1,11 @@
 import customtkinter as ctk
 from tkinter import messagebox
-import pyperclip  # New import for clipboard management
+import pyperclip  
 import re
 import string
 import secrets
+import hashlib  # Needed for encrypting the password
+import requests # Needed for talking to the web API
 
 ctk.set_appearance_mode("System")  
 ctk.set_default_color_theme("blue")  
@@ -12,10 +14,8 @@ class PasswordStrengthApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Modern Password Tool")
-        self.root.geometry("450x650") # Slightly taller to fit new buttons
+        self.root.geometry("450x700") # Increased height slightly
 
-        # A small dictionary of common, easy-to-type words for our Passphrase Generator
-        # In a massive production app, you'd load this from a text file of 10,000+ words
         self.word_list = [
             "apple", "river", "cloud", "stone", "train", "light", "mouse", "chair",
             "brain", "glass", "water", "plant", "music", "table", "paper", "heart",
@@ -30,11 +30,10 @@ class PasswordStrengthApp:
         self.main_frame.pack(pady=20, padx=20, fill="both", expand=True)
 
         # --- CHECKER SECTION ---
-        title_label = ctk.CTkLabel(self.main_frame, text="Password Strength Checker", 
+        title_label = ctk.CTkLabel(self.main_frame, text="Password Security Checker", 
                                    font=ctk.CTkFont(size=20, weight="bold"))
         title_label.pack(pady=(20, 10))
 
-        # Created a frame to hold the Entry and the Copy button side-by-side
         entry_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         entry_frame.pack(pady=10)
 
@@ -43,7 +42,6 @@ class PasswordStrengthApp:
         self.password_entry.grid(row=0, column=0, padx=(0, 5))
         self.password_entry.bind("<KeyRelease>", self.update_strength_indicator)
 
-        # The new Copy Button
         self.copy_btn = ctk.CTkButton(entry_frame, text="📋 Copy", width=50, 
                                       command=self.copy_to_clipboard, fg_color="#4b5563", hover_color="#374151")
         self.copy_btn.grid(row=0, column=1)
@@ -54,34 +52,39 @@ class PasswordStrengthApp:
 
         self.strength_label = ctk.CTkLabel(self.main_frame, text="Strength: None", 
                                            font=ctk.CTkFont(size=16, weight="bold"))
-        self.strength_label.pack(pady=(15, 5))
+        self.strength_label.pack(pady=(10, 0))
 
         self.strength_bar = ctk.CTkProgressBar(self.main_frame, width=300, height=12)
         self.strength_bar.set(0) 
         self.strength_bar.pack(pady=5)
 
+        # --- NEW: API BREACH CHECKER SECTION ---
+        self.pwned_btn = ctk.CTkButton(self.main_frame, text="🔍 Check if Pwned (Data Breach)", 
+                                       command=self.check_pwned_api, fg_color="#b91c1c", hover_color="#991b1b")
+        self.pwned_btn.pack(pady=10)
+
+        self.pwned_label = ctk.CTkLabel(self.main_frame, text="", font=ctk.CTkFont(size=12))
+        self.pwned_label.pack(pady=(0, 10))
+
         # --- GENERATOR SECTION ---
         gen_frame = ctk.CTkFrame(self.main_frame, corner_radius=10)
-        gen_frame.pack(pady=20, fill="x", padx=20)
+        gen_frame.pack(pady=10, fill="x", padx=20)
 
         ctk.CTkLabel(gen_frame, text="Need a secure password?", 
                      font=ctk.CTkFont(size=14, weight="bold")).pack(pady=(10, 5))
 
-        # 1. Random Generator
         random_btn = ctk.CTkButton(gen_frame, text="🎲 Generate Random Password", 
                                    command=self.generate_random_password, 
                                    fg_color="#4b5563", hover_color="#374151")
         random_btn.pack(fill="x", padx=20, pady=5)
 
-        # 2. NEW: Passphrase Generator
         passphrase_btn = ctk.CTkButton(gen_frame, text="📚 Generate Memorable Passphrase", 
                                    command=self.generate_passphrase, 
-                                   fg_color="#059669", hover_color="#047857") # Green to show it's recommended
+                                   fg_color="#059669", hover_color="#047857") 
         passphrase_btn.pack(fill="x", padx=20, pady=5)
 
         ctk.CTkLabel(gen_frame, text="-- OR --", text_color="gray").pack()
 
-        # 3. Custom Info Generator
         input_frame = ctk.CTkFrame(gen_frame, fg_color="transparent")
         input_frame.pack(fill="x", padx=20, pady=5)
 
@@ -97,12 +100,55 @@ class PasswordStrengthApp:
 
     # --- LOGIC METHODS ---
 
+    def check_pwned_api(self):
+        """Securely checks the password against the Have I Been Pwned API."""
+        password = self.password_entry.get()
+        if not password:
+            messagebox.showwarning("Empty", "Please enter a password to check.")
+            return
+
+        # 1. Hash the password using SHA-1
+        sha1_password = hashlib.sha1(password.encode('utf-8')).hexdigest().upper()
+        # 2. Split the hash for K-Anonymity security
+        prefix, suffix = sha1_password[:5], sha1_password[5:]
+
+        # 3. Update UI to show loading state
+        self.pwned_btn.configure(text="⏳ Checking...", state="disabled")
+        self.root.update()
+
+        try:
+            # 4. Request data from the API
+            url = f"https://api.pwnedpasswords.com/range/{prefix}"
+            response = requests.get(url, timeout=5)
+
+            if response.status_code == 200:
+                # API returns lines like "SUFFIX:COUNT". We split and check them.
+                hashes = (line.split(':') for line in response.text.splitlines())
+                found_count = 0
+                for h, count in hashes:
+                    if h == suffix:
+                        found_count = int(count)
+                        break
+                
+                # 5. Display the results
+                if found_count > 0:
+                    self.pwned_label.configure(text=f"⚠️ WARNING: Found in {found_count:,} data breaches!", text_color="#ef4444")
+                else:
+                    self.pwned_label.configure(text="✅ Safe: Not found in any known data breaches.", text_color="#22c55e")
+            else:
+                self.pwned_label.configure(text="❌ Error connecting to the API.", text_color="gray")
+
+        except requests.exceptions.RequestException:
+            self.pwned_label.configure(text="❌ No internet connection or API is down.", text_color="gray")
+        
+        finally:
+            # Reset button state
+            self.pwned_btn.configure(text="🔍 Check if Pwned (Data Breach)", state="normal")
+
     def copy_to_clipboard(self):
-        """Copies the current password to the OS clipboard."""
         password = self.password_entry.get()
         if password:
             pyperclip.copy(password)
-            # Temporarily change button text to give user feedback
             self.copy_btn.configure(text="✅ Copied!")
             self.root.after(2000, lambda: self.copy_btn.configure(text="📋 Copy"))
         else:
@@ -120,14 +166,14 @@ class PasswordStrengthApp:
         self.show_cb.select() 
         self.toggle_password_visibility()
         self.update_strength_indicator()
+        # Reset the pwned label when a new password is generated
+        self.pwned_label.configure(text="")
 
     def generate_random_password(self, length=14):
         alphabet = string.ascii_letters + string.digits + "!@#$%^&*()_+"
         required_chars = [
-            secrets.choice(string.ascii_lowercase),
-            secrets.choice(string.ascii_uppercase),
-            secrets.choice(string.digits),
-            secrets.choice("!@#$%^&*()_+")
+            secrets.choice(string.ascii_lowercase), secrets.choice(string.ascii_uppercase),
+            secrets.choice(string.digits), secrets.choice("!@#$%^&*()_+")
         ]
         rest_of_password = [secrets.choice(alphabet) for _ in range(length - 4)]
         password_list = required_chars + rest_of_password
@@ -135,13 +181,9 @@ class PasswordStrengthApp:
         self.apply_generated_password("".join(password_list))
 
     def generate_passphrase(self):
-        """Generates a secure 4-word passphrase separated by hyphens."""
         words = [secrets.choice(self.word_list) for _ in range(4)]
         passphrase = "-".join(words)
-        
-        # Add a random number to the end to satisfy typical website requirements
         passphrase += str(secrets.randbelow(100))
-        
         self.apply_generated_password(passphrase)
 
     def generate_custom_password(self):
@@ -165,8 +207,7 @@ class PasswordStrengthApp:
         
         while len(password) < 12:
             password += secrets.choice(string.ascii_letters)
-            
-        self.apply_generated_password(password)
+            self.apply_generated_password(password)
 
     def check_password_strength(self, password):
         if not password:
@@ -175,13 +216,12 @@ class PasswordStrengthApp:
         score = 0
         if len(password) >= 8: score += 1
         if len(password) >= 12: score += 1
-        if len(password) >= 16: score += 1 # Extra point for passphrase length
+        if len(password) >= 16: score += 1 
         if re.search(r"[a-z]", password): score += 1 
         if re.search(r"[A-Z]", password): score += 1 
         if re.search(r"\d", password): score += 1    
-        if re.search(r"[!@#$%^&*(),.?\":{}|<>\-]", password): score += 1 # Added hyphen support
+        if re.search(r"[!@#$%^&*(),.?\":{}|<>\-]", password): score += 1 
 
-        # Adjusted scoring out of 7 possible points
         if score <= 3: return "Weak", 0.25, "#ff4d4d"
         elif score <= 5: return "Fair", 0.50, "#ffcc00"
         elif score == 6: return "Good", 0.75, "#ffa500"
@@ -191,6 +231,10 @@ class PasswordStrengthApp:
         password = self.password_entry.get()
         strength, value, color = self.check_password_strength(password)
         
+        # Reset the breach label if the user starts typing a new password
+        if event:
+            self.pwned_label.configure(text="")
+
         if strength == "None":
             self.strength_label.configure(text="Strength: None", text_color="gray")
             self.strength_bar.set(0)
